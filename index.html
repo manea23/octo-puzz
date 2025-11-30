@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" type="image/png" href="images/favicon.png">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pharos Puzzle Game </title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+<style>
+:root {
+  --glass-bg: rgba(255,255,255,0.15);
+  --glass-border: rgba(255,255,255,0.25);
+  --neon: #06e7f7;
+  --accent: #15aaff;
+  --bg-dark: #0c0f14;
+  --text: #e7ecf2;
+  --tile-radius: 14px;
+  --board-size: min(88vw, 460px);
+}
+body { margin: 0; font-family: 'Inter', sans-serif; background: radial-gradient(circle at 20% 20%, #12151b 0%, #090c10 100%); color: var(--text); overflow-x: hidden; }
+.header { text-align: center; padding: 24px 12px 10px; }
+.header h1 { font-size: 2.2rem; font-weight: 700; color: var(--neon); text-shadow: 0 0 8px rgba(0,255,255,0.5);}
+.header .sub { font-size: 0.9rem; color: #9da3ad; }
+.panel { width: 100%; max-width: 520px; margin: 0 auto 24px; padding: 24px; border-radius: 22px; background: var(--glass-bg); border: 1px solid var(--glass-border); box-shadow: 0 12px 40px rgba(0,0,0,0.25); backdrop-filter: blur(18px) saturate(180%); }
+.board-wrap { width: var(--board-size); aspect-ratio: 1/1; margin: 0 auto 24px; padding: 10px; border-radius: 20px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(10px); }
+.board { width: 100%; height: 100%; display: grid; gap: 6px; }
+.tile { border-radius: var(--tile-radius); background-size: 300% 300%; transition: transform .25s cubic-bezier(.22,1,.36,1), box-shadow .25s ease; cursor: pointer; }
+.tile:not(.empty):hover { transform: scale(1.06); box-shadow: 0 6px 28px rgba(0,255,255,0.25); }
+.tile.empty { background: transparent; cursor: default; }
+.stats { text-align: center; margin-bottom: 18px; }
+.stats div { font-size: 1.1rem; font-weight: 600; }
+.action-bar { margin-top: 18px; display: flex; justify-content: space-around; gap: 10px; }
+.action-btn { flex: 1; padding: 14px; border-radius: 12px; font-weight: 600; background: rgba(0,255,255,0.1); border: 1px solid rgba(0,255,255,0.3); color: var(--neon); transition: 0.2s ease; }
+.action-btn:hover { background: rgba(0,255,255,0.18); }
+.selector { margin-top: 28px; }
+.selector h3 { font-size: 1.1rem; font-weight: 600; color: var(--accent); text-shadow: 0 0 6px rgba(21,170,255,0.4); }
+.preset-row { display: flex; overflow-x: auto; gap: 10px; padding-bottom: 5px; margin-top: 8px; }
+.preset-thumb { width: 80px; height: 80px; border-radius: 14px; object-fit: cover; cursor: pointer; border: 2px solid transparent; transition: 0.2s ease; }
+.preset-thumb:hover { transform: scale(1.05); border-color: var(--neon); }
+.status-box { margin-top: 22px; padding: 14px; border-radius: 14px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); text-align:center; }
+#confettiCanvas { position: fixed; inset: 0; pointer-events: none; z-index: 2000; }
+#winFlash { position: fixed; inset: 0; background: radial-gradient(circle, rgba(255,255,255,0.7), transparent); opacity: 0; transition: 1s ease; pointer-events: none; z-index: 3000; }
+
+.leaderboard-card {
+  background: rgba(255,255,255,0.05);
+  border-left: 4px solid var(--neon);
+  border-radius: 12px;
+  backdrop-filter: blur(8px);
+  transition: transform 0.2s, background 0.2s;
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-height: 80px;
+}
+.leaderboard-card:hover {
+  background: rgba(6,231,247,0.15);
+  transform: scale(1.02);
+}
+.leaderboard-card .top-row {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 12px; 
+}
+.leaderboard-card .rank {
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: var(--neon);
+  display: flex;
+  align-items: center;
+}
+.leaderboard-card .wallet {
+  font-family: monospace;
+  color: #e7ecf2;
+  flex: 1;
+  text-align: left;
+}
+.leaderboard-card .details {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.95rem;
+  color: #cfd4da;
+  margin-top: 6px;
+}
+.hint-highlight {
+  outline: 4px solid #06e7f7;
+  box-shadow: 0 0 20px #06e7f7;
+  animation: hintPulse 1s infinite alternate;
+}
+
+@keyframes hintPulse {
+  0% { transform: scale(1); }
+  100% { transform: scale(1.08); }
+}
+
+.rank-gold {
+  border-left-color: #FFD700;
+  background: rgba(255, 215, 0, 0.1);
+  animation: popTopRank 1.2s ease forwards;
+  box-shadow: 0 0 10px #FFD700;
+}
+.rank-silver {
+  border-left-color: #C0C0C0;
+  background: rgba(192, 192, 192, 0.1);
+  animation: popTopRank 1.2s ease forwards;
+  box-shadow: 0 0 10px #C0C0C0;
+}
+.rank-bronze {
+  border-left-color: #CD7F32;
+  background: rgba(205, 127, 50, 0.1);
+  animation: popTopRank 1.2s ease forwards;
+  box-shadow: 0 0 10px #CD7F32;
+}
+@keyframes popTopRank {
+  0% { transform: scale(0.95); box-shadow: 0 0 0px rgba(255,255,255,0); }
+  50% { transform: scale(1.05); box-shadow: 0 0 20px rgba(255,255,255,0.3); }
+  100% { transform: scale(1); box-shadow: 0 0 10px rgba(255,255,255,0.15); }
+}
+
+@media (max-width: 480px) { .preset-thumb { width: 70px; height: 70px; } .action-btn { padding: 12px; } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>PHAROS PUZZLE</h1>
+  <div class="sub">Gocto!! Sailors, Lets see how quick you can solve this puzzle.</div>
+</div>
+
+<div class="panel">
+  <div class="board-wrap"><div id="board" class="board"></div></div>
+  <div class="stats"><div id="moves">Moves: 0</div><div id="timer" class="text-muted">Time: 00:00</div></div>
+  <div class="action-bar">
+    <button id="btnShuffle" class="action-btn">🔀 Shuffle</button>
+    <button class="action-btn" data-size="3">3×3</button>
+    <button class="action-btn" data-size="4">4×4</button>
+    <button class="action-btn" data-size="5">5×5</button>
+    <button id="btnHint" class="action-btn">💡 Hint</button>
+  </div>
+
+  <div class="selector">
+    <h3>Choose Image</h3>
+    <div class="preset-row" id="presetContainer"></div>
+    <input id="imageUpload" type="file" class="form-control mt-2" accept="image/*">
+  </div>
+
+  <div class="status-box"><div id="status">Ready</div></div>
+</div>
+
+<!-- Leaderboard -->
+<div class="container mt-4">
+  <h3 class="text-center mb-3" style="color:var(--neon);">Leaderboard</h3>
+  <div id="leaderboardCards" class="d-flex flex-column gap-4"></div>
+</div>
+
+<!-- Reward Modal -->
+<div class="modal fade" id="rewardModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content p-3">
+      <h5 class="mb-2">🎁 Claim Your Reward</h5>
+      <input id="walletAddress" class="form-control mb-2" placeholder="Enter your wallet address">
+      <div id="rewardMsg" class="small text-muted mb-2"></div>
+      <button id="btnClaim" class="btn btn-success w-100">Claim $PHRS Tokens</button>
+    </div>
+  </div>
+</div>
+
+<canvas id="confettiCanvas"></canvas>
+<div id="winFlash"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+const SUPABASE_URL = "https://jyhahhseqtzghqpgjxen.supabase.co";        
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp5aGFoaHNlcXR6Z2hxcGdqeGVuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ0NTIzNTUsImV4cCI6MjA4MDAyODM1NX0.qnlAEdr8boHIuPT61WvY53DX4SSJ1CMj8bDpSH1nZ6w";  
+
+const boardEl = document.getElementById("board");
+const movesEl = document.getElementById("moves");
+const timerEl = document.getElementById("timer");
+const statusEl = document.getElementById("status");
+const presetContainer = document.getElementById("presetContainer");
+const rewardModal = new bootstrap.Modal(document.getElementById("rewardModal"));
+const walletAddress = document.getElementById("walletAddress");
+const btnClaim = document.getElementById("btnClaim");
+const rewardMsg = document.getElementById("rewardMsg");
+
+let size = 3, tiles = [], emptyIndex = 0, moves = 0, seconds = 0, timer = null, baseImage = null;
+
+let hintsRemaining = 3;  // 🔧 ADDED — track 3 hints
+const btnHint = document.getElementById("btnHint");  // 🔧 ADDED
+
+
+const presets = [
+  "images/pic1.jpg",
+  "images/pic2.jpg",
+  "images/pic3.jpg",
+  "images/pic4.jpg",
+  "images/pic5.jpg"
+];
+
+function startTimer(){ if(timer) return; timer = setInterval(()=>{seconds++; timerEl.textContent=formatTime(seconds);},1000);}
+function stopTimer(){ clearInterval(timer); timer=null;}
+function formatTime(s){ return `${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;}
+
+function buildBoard(){ 
+  tiles=[...Array(size*size).keys()]; 
+  emptyIndex=tiles.length-1; 
+  moves=0; 
+  seconds=0; 
+  stopTimer(); 
+  updateBoardUI();
+  shuffle();
+
+  // 🔧 ADDED — reset hints each new puzzle
+  hintsRemaining = 3;
+  btnHint.disabled = false;
+  btnHint.textContent = "💡 Hint";
+}
+
+function updateBoardUI(){
+  boardEl.innerHTML="";
+  boardEl.style.gridTemplateColumns=`repeat(${size},1fr)`;
+  const frag=document.createDocumentFragment();
+  const unit=100/(size-1);
+  tiles.forEach((t,idx)=>{
+    const tile=document.createElement("div");
+    tile.className="tile";
+    if(t===emptyIndex) tile.classList.add("empty");
+    else {
+      const row=Math.floor(t/size), col=t%size;
+      tile.style.backgroundImage=baseImage?`url(${baseImage})`:"linear-gradient(135deg, #1deefb, #208abf)";
+      tile.style.backgroundSize=`${size*100}% ${size*100}%`;
+      tile.style.backgroundPosition=`${col*unit}% ${row*unit}%`;
+      tile.onclick=()=>handleTileClick(idx);
+    }
+    frag.appendChild(tile);
+  });
+  boardEl.appendChild(frag);
+  movesEl.textContent=`Moves: ${moves}`;
+  timerEl.textContent=`Time: ${formatTime(seconds)}`;
+}
+
+function isAdjacent(a,b){ const r1=Math.floor(a/size),c1=a%size,r2=Math.floor(b/size),c2=b%size; return Math.abs(r1-r2)+Math.abs(c1-c2)===1;}
+function handleTileClick(idx){
+  const emptyPos=tiles.indexOf(emptyIndex);
+  if(!isAdjacent(idx,emptyPos)) return;
+  [tiles[idx],tiles[emptyPos]]=[tiles[emptyPos],tiles[idx]];
+  moves++; updateBoardUI(); if(!timer) startTimer();
+  if(checkSolved()) onSolved();
+}
+function checkSolved(){ return tiles.every((v,i)=>v===i); }
+
+function shuffle(times=180){
+  for(let i=0;i<times;i++){
+    const emptyPos=tiles.indexOf(emptyIndex);
+    const r=Math.floor(emptyPos/size),c=emptyPos%size,opts=[];
+    [[r-1,c],[r+1,c],[r,c-1],[r,c+1]].forEach(([rr,cc])=>{if(rr>=0&&rr<size&&cc>=0&&cc<size) opts.push(rr*size+cc);});
+    const choice=opts[Math.floor(Math.random()*opts.length)];
+    [tiles[choice],tiles[emptyPos]]=[tiles[emptyPos],tiles[choice]];
+  }
+  moves=0; seconds=0; stopTimer(); updateBoardUI();
+  statusEl.textContent="Shuffled";
+}
+
+const confettiCanvas=document.getElementById("confettiCanvas");
+const ctx=confettiCanvas.getContext("2d");
+function launchConfetti(){
+  confettiCanvas.width=window.innerWidth; confettiCanvas.height=window.innerHeight;
+  const pieces=Array.from({length:180},()=>({x:Math.random()*window.innerWidth,y:Math.random()*-200,r:Math.random()*7+3,c:`hsl(${Math.random()*360},100%,60%)`,vx:(Math.random()-0.5)*2,vy:Math.random()*3+1}));
+  function frame(){ ctx.clearRect(0,0,confettiCanvas.width,confettiCanvas.height); pieces.forEach(p=>{p.x+=p.vx;p.y+=p.vy;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fillStyle=p.c;ctx.fill();}); requestAnimationFrame(frame); }
+  frame();
+}
+function flashWin(){ const fw=document.getElementById("winFlash"); fw.style.opacity=1; setTimeout(()=>fw.style.opacity=0,1200); }
+
+function onSolved(){ stopTimer(); statusEl.textContent="Solved!"; flashWin(); launchConfetti();
+  rewardModal.show(); rewardMsg.textContent = `Reward: ${getRewardAmount(size)} Phrs tokens`; 
+}
+
+let lastClaimTime=0; const claimCooldown=24*60*60*1000;
+function getRewardAmount(size){ return size===5?0.:size===4?0.1:0.05; }
+
+btnClaim.onclick = async () => {
+  const wallet = walletAddress.value.trim();
+  if (!wallet) { alert("Enter your wallet"); return; }
+
+  const amount = getRewardAmount(size);
+  const now = new Date().toISOString();
+
+  try {
+    // 1. Fetch existing record for this wallet and puzzle size
+    const checkRes = await fetch(`${SUPABASE_URL}/rest/v1/leaderboard?wallet=eq.${wallet}&size=eq.${size}`, {
+      headers: {
+        "apikey": SUPABASE_KEY,
+        "Authorization": `Bearer ${SUPABASE_KEY}`,
+      },
+    });
+    const existing = await checkRes.json();
+
+    let allowClaim = true;
+    if (existing.length > 0) {
+      const record = existing[0];
+      if (record.last_claimed) {
+        const lastClaim = new Date(record.last_claimed);
+        const diffMs = new Date() - lastClaim;
+        const cooldownMs = 24 * 60 * 60 * 1000; // 24h
+        if (diffMs < cooldownMs) {
+          const rem = cooldownMs - diffMs;
+          const h = Math.floor(rem / 1000 / 60 / 60);
+          const m = Math.floor((rem / 1000 / 60) % 60);
+          alert(`⏳ Wait ${h}h ${m}m before claiming again.`);
+          allowClaim = false;
+        }
+      }
+    }
+
+    if (!allowClaim) return;
+
+    // 2. Insert or update record
+    if (existing.length > 0) {
+      const record = existing[0];
+      if (seconds < record.time_seconds || (seconds === record.time_seconds && moves < record.moves)) {
+        // New high score
+        await fetch(`${SUPABASE_URL}/rest/v1/leaderboard?wallet=eq.${wallet}&size=eq.${size}`, {
+          method: "PATCH",
+          headers: {
+            "apikey": SUPABASE_KEY,
+            "Authorization": `Bearer ${SUPABASE_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ moves, time_seconds: seconds, last_claimed: now }),
+        });
+        alert(`✅ New high score for ${size}×${size}! ${amount} Phrs tokens awarded.`);
+      } else {
+        // Only update last_claimed timestamp
+        await fetch(`${SUPABASE_URL}/rest/v1/leaderboard?wallet=eq.${wallet}&size=eq.${size}`, {
+          method: "PATCH",
+          headers: {
+            "apikey": SUPABASE_KEY,
+            "Authorization": `Bearer ${SUPABASE_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ last_claimed: now }),
+        });
+        alert(`✅ Reward claimed! Your previous score remains.`);
+      }
+    } else {
+      // Insert new record
+      await fetch(`${SUPABASE_URL}/rest/v1/leaderboard`, {
+        method: "POST",
+        headers: {
+          "apikey": SUPABASE_KEY,
+          "Authorization": `Bearer ${SUPABASE_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ wallet, size, moves, time_seconds: seconds, last_claimed: now }),
+      });
+      alert(`✅ Gocto!! ${amount} Phrs will be sent soon!!!.`);
+    }
+
+    walletAddress.value = "";
+    rewardModal.hide();
+    loadLeaderboard();
+
+      shuffle();
+
+
+  } catch (err) {
+    console.error(err);
+    alert("Submission failed");
+  }
+};
+
+function maskWallet(addr) {
+  if (!addr) return "";
+  return addr.slice(0, 4) + "…" + addr.slice(-4);
+}
+
+async function loadLeaderboard() {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/leaderboard?size=eq.${size}&order=time_seconds.asc,moves.asc&limit=10`, {
+      headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}` }
+    });
+    const data = await res.json();
+    const container = document.getElementById("leaderboardCards");
+    container.innerHTML = "";
+
+    data.forEach((entry, i) => {
+      const div = document.createElement("div");
+      div.className = "leaderboard-card";
+      if (i === 0) div.classList.add("rank-gold");
+      else if (i === 1) div.classList.add("rank-silver");
+      else if (i === 2) div.classList.add("rank-bronze");
+
+      div.innerHTML = `
+        <div class="top-row">
+          <div class="rank">${i+1}.</div>
+          <div class="wallet">${maskWallet(entry.wallet)}</div>
+        </div>
+        <div class="details">
+          <span>Moves: ${entry.moves}</span>
+          <span>Time: ${formatTime(entry.time_seconds)}</span>
+        </div>
+      `;
+      container.appendChild(div);
+    });
+  } catch(err) {
+    console.error(err);
+  }
+}
+
+// ==========================================
+// 🔧 NEW HINT BUTTON LOGIC (3 uses max)
+// ==========================================
+btnHint.onclick = () => {
+  if (hintsRemaining > 0) {
+    hintsRemaining--;
+    autoHintMove();
+
+    if (hintsRemaining === 0) {
+      btnHint.disabled = true;
+      btnHint.textContent = "💡 No Hints";
+    } else {
+      btnHint.textContent = `💡 Hint (${hintsRemaining} left)`;
+    }
+  }
+};
+// ==========================================
+
+
+document.querySelectorAll(".action-bar button[data-size]").forEach(btn=>{
+  btn.onclick=()=>{size=parseInt(btn.dataset.size); buildBoard(); loadLeaderboard();};
+});
+document.getElementById("btnShuffle").onclick=()=>shuffle();
+presets.forEach(src=>{
+  const img=document.createElement("img"); img.src=src; img.className="preset-thumb"; img.onclick=()=>{baseImage=src; buildBoard();};
+  presetContainer.appendChild(img);
+});
+document.getElementById("imageUpload").addEventListener("change",e=>{if(e.target.files.length){baseImage=URL.createObjectURL(e.target.files[0]); buildBoard();}});
+
+
+baseImage = presets[0];
+
+buildBoard(); 
+loadLeaderboard();
+
+
+function autoHintMove() {
+
+
+  const emptyPos = tiles.indexOf(emptyIndex);
+  const r = Math.floor(emptyPos / size);
+  const c = emptyPos % size;
+
+  const adjacentPositions = [
+    [r - 1, c], 
+    [r + 1, c], 
+    [r, c - 1], 
+    [r, c + 1]
+  ]
+    .filter(([rr, cc]) => rr >= 0 && rr < size && cc >= 0 && cc < size)
+    .map(([rr, cc]) => rr * size + cc);
+
+
+  const movableWrongTiles = adjacentPositions.filter(pos => tiles[pos] !== pos);
+
+
+  const movePos = movableWrongTiles.length > 0
+    ? movableWrongTiles[Math.floor(Math.random() * movableWrongTiles.length)]
+    : adjacentPositions[Math.floor(Math.random() * adjacentPositions.length)];
+
+ 
+  [tiles[movePos], tiles[emptyPos]] = [tiles[emptyPos], tiles[movePos]];
+
+  moves++;
+  updateBoardUI();
+  if (!timer) startTimer();
+
+  
+  if (checkSolved()) onSolved();
+}
+
+
+</script>
+<!-- Follow Button -->
+<div style="text-align:center; margin: 40px 0;">
+  <a 
+    href="https://twitter.com/divine_cryp" 
+    target="_blank" 
+    style="
+      display:inline-block;
+      padding:12px 24px;
+      background: rgba(0,255,255,0.15);
+      border: 2px solid #06e7f7;
+      color: #06e7f7;
+      border-radius: 12px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: 0.25s;
+    "
+    onmouseover="this.style.background='rgba(0,255,255,0.25)'"
+    onmouseout="this.style.background='rgba(0,255,255,0.15)'"
+  >
+    ⭐ Follow me @divine_cryp
+  </a>
+</div>
+
+</body>
+</html>
